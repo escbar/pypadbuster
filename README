@@ -19,15 +19,29 @@ instead in lack of a previous_ciphertext_block.
 
 So when it can be established that the last byte of a string is 0x01 (which our
 padding oracle discloses to us by not complaining about our padding being incorrect),
-we can make it decrypt to an arbitrary value by calculating the xor "key" for the
-corresponding byte in previous_ciphertext_block:  previous_byte  XOR  0x01
+we can make it decrypt to an arbitrary value by calculating the xor "key" - I use
+"key" in lack of a better word - for the corresponding byte in previous_ciphertext_block:
+
+last_byte  XOR  0x01
 
 Since modifying even a single bit in a ciphertext block in most modern block ciphers
 causes the decrypted value to be completely different from the unaltered version,
 we modify the IV instead.
 
-The padding oracle enables us to calculate the complete "xor key" for any given
-ciphertext block with roughly 128*block_size queries.
+Once we know the first byte of the xor key, we calculate the last byte of the IV:
+
+xorkey[-1]  XOR  0x02
+
+And bruteforce the next byte until we have an IV that results in the last two
+bytes being decrypted as 0x02 0x02.
+
+The padding oracle enables us to calculate the complete xor key for any given
+ciphertext block with roughly 256 * block_size * 0.5 queries (average).
+
+
+If a decrypted block is leaked, we can calculate the xor key for the block by
+XOR'ing the leaked plaintext with the IV that caused the leak.
+
 
 Credits go to Serge Vaudenay for publishing this attack in his EUROCRYPT paper
 "Security Flaws Induced By CBC Padding Applications to SSL, IPSEC, WLTS.." (2002)

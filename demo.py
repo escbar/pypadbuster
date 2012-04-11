@@ -30,8 +30,13 @@ def verify_padding(data):
       return False
     else:
       ret.append( block[:-padding_length] )
-  # return the string (minus the padding)
-  return ''.join(ret)
+  # if the padding oracle returns the decrypted block, we can derive the remaining
+  # bytes of the XOR key by returning that here (the decrypted block will be matched
+  # against the supplied IV):
+  #return ''.join(ret)
+
+  # if our padding oracle is a boolean "padding error"/"correct padding" oracle:
+  return True
 
 test_string = 'The quick brown fox jumped over the lazy dog and tried to span some blocks of ciphertext'
 
@@ -44,7 +49,7 @@ padding_oracle = lambda iv,ciphertext: decrypt(key, iv+ciphertext)
 
 bin_decrypted  = padding_oracle(known_iv, bin_encrypted)
 
-if test_string != bin_decrypted:
+if test_string != bin_decrypted and not bin_decrypted is True :
   raise Exception((5,'Self testing failed: "%s" != "%s"' % (test_string, bin_decrypted)))
 encrypted = b64encode(known_iv + bin_encrypted)
 print '\x1b[32;1m[*]\x1b[0m IV + encrypted version of "%s":\n%s' % (test_string, encrypted)
