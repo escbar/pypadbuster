@@ -9,10 +9,10 @@ def pad_string_pkcs7(block_size, unpadded):
     blocks.append(this_block  +  padding_size * chr(padding_size))
   return ''.join(blocks)
 
-def breakablock(block_size, enc, padding_oracle):
-  translation_table = padding = ''
+def breakablock(block_size, enc, padding_oracle, translation_table=''):
+  padding = ''
   if not len(enc) % block_size ==0: raise Exception((1,'Incorrect wrong size %d' % len(enc)))
-  for i in range(0, block_size):
+  for i in range(len(translation_table), block_size):
     # This would be a good place to add parallelization since we need the IV
     # of the block before us to attempt to break a block.
 
@@ -26,11 +26,13 @@ def breakablock(block_size, enc, padding_oracle):
       decrypt_result = padding_oracle(new_iv, enc)
       if not decrypt_result is False:
 	if decrypt_result is True:
-	  print '\x1b[35;1m[*]\x1b[0m IV byte %2d: Padding "%s" [%d] is valid with IV %s' % (i, (chr(i+1)*(i+1)).encode("hex"),len(padding)+1, new_iv.encode("hex"))
 	  translation_table = chr((c ^ (i+1))&255) + translation_table
+	  print '\x1b[35;1m[*]\x1b[0m IV byte %2d: PKCS7 padding: 0x%02x is valid with IV %s - xor key: %s' % (i, len(padding)+1, new_iv.encode("hex"), translation_table.encode('hex'))
 	else:
+	  # TODO handle cases when it leaks an entire decrypted string instead of
+	  # one block:
 	  if len(decrypt_result) > block_size:
-	    raise Exception((4,"We thought we had a leaked block, but we didn't decode it correctly: %s: %s" % (decrypt_result.encode('hex'), decrypt_result)))
+	    raise Exception((4,"We thought we had a leaked block, but we didn't decode it correctly.\nOur IV: %s\n our ciphertext: %s\nResult: %s\nResult(binary): %s" % (new_iv.encode('hex'), enc.encode('hex'), decrypt_result.encode('hex'), decrypt_result)))
 	  padding_chr = abs( len(decrypt_result) - block_size)
 	  leaked_plaintext  = decrypt_result + chr(padding_chr) * padding_chr
 	  translation_table = xorstring(new_iv, leaked_plaintext)
@@ -48,7 +50,7 @@ def xorstring(key,data):
     build += chr( ord(key[i%len(key)])  ^ ord(data[i]))
   return build
 
-def generate_ciphertext(block_size, wantedstr, padding_oracle):
+def generate_ciphertext(block_size, wantedstr, padding_oracle, partial_xor_key=''):
   # TODO we can calculate the block size by taking the first 32 bytes of a valid
   # ciphertext and checking:
   # - if len % 16 is 8, the block size is 8 bytes
@@ -56,11 +58,19 @@ def generate_ciphertext(block_size, wantedstr, padding_oracle):
   # valid, the block size is 16 bytes
   wanted = pad_string_pkcs7(block_size, wantedstr)
   print '\x1b[33;1m[*]\x1b[0m Going to produce %d blocks: %s' % (len(wanted) / block_size, repr(wanted))
-  ciphertext = ''
+  ciphertext = xor_key_for_this_block = ''
   iv         = '\x00' * block_size
   for bptr in range(len(wanted) / block_size -1, -1, -1):
     block      = xorstring('\x00'*block_size, iv)
-    xor_key    = breakablock(block_size, block, padding_oracle)
+    bptr_start = bptr * block_size
+    bptr_end   = bptr_start + block_size
+    if len(wanted) - len(partial_xor_key) < bptr_end:
+      xor_key_for_this_block = partial_xor_key[len(wanted)-bptr_end:len(wanted)-bptr_start]
+      print '\x1b[33;1m[*]\x1b[0m We think we have %2d xor characters for this block: %s ' \
+	% (len(xor_key_for_this_block), xor_key_for_this_block.encode('hex'))
+    else:
+      xor_key_for_this_block = ''
+    xor_key    = breakablock(block_size, block, padding_oracle, xor_key_for_this_block)
     ciphertext = block + ciphertext
     iv         = xorstring( wanted[bptr*block_size:bptr*block_size+block_size],
 			    xor_key)

@@ -1,3 +1,5 @@
+### see demo.py for working example code
+
 # define the padding oracle.
 # padding_oracle arguments:
 # 1 - first argument must be the initialization vector
@@ -5,7 +7,8 @@
 # padding_oracle return:
 # - False in case of invalid padding
 # - True in case of valid padding
-# - the resulting decrypted block in cases where the decrypted block is leaked. This drastically lowers the amount of required queries.
+# - the resulting decrypted block in cases where the decrypted block is leaked.
+# This drastically lowers the amount of required queries per block.
 
 # Note: usually this function would handle http connections (+ retries after
 #  network errors and the like).
@@ -14,7 +17,24 @@ padding_oracle = lambda iv, ciphertext: aes_decryption_func_that_verifies_paddin
 
 import pypadbuster
 
-# Calculate new IV + ciphertext
+### Calculate new IV + ciphertext
 
-(newiv, newciphertext) = pypadbuster.generate_ciphertext('string we want the ciphertext to decrypt to', padding_oracle)
+block_size = 16
+# 64bit = 8 bytes, 128bit = 16 bytes, etc
+
+desired_string = 'string we want the ciphertext to decrypt to'
+# the desired_string will be extended to have valid PKCS7 padding and then we
+# will try to generate an IV + ciphertext that decrypts to the desired_string
+
+known_xor=''
+# the known_xor parameter is used to pass calculated xor keys from previous runs
+# the first ((block_size)) bytes will always stay the same for any given oracle
+# since we use the same ciphertext for the last block: 0x00 * block_size
+
+(newiv, newciphertext) = pypadbuster.generate_ciphertext(
+  block_size,
+  desired_string,
+  padding_oracle,
+  known_xor
+  )
 

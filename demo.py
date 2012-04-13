@@ -1,6 +1,6 @@
 from pypadbuster import *
 
-from base64 import b64encode,b64decode
+from base64 import b64encode, b64decode
 from Crypto.Cipher import AES
 
 keysize    = 32
@@ -59,7 +59,16 @@ print '\x1b[32;1m[*]\x1b[0m IV + encrypted version of "%s":\n%s' % (test_string,
 # that will return False if the input wasn't correctly padded
 # (and a non-False value in all other cases)
 
-(new_iv, new_ciphertext) = generate_ciphertext(block_size, test_string, padding_oracle)
+(new_iv, new_ciphertext) = generate_ciphertext(
+  block_size,
+  test_string,
+  padding_oracle,
+  # demonstrate error recovery/resuming by supplying the xor keys for the first block,
+  # "\x00"*blocksize (which will always be the same), and the first byte of
+  # the xor key for the current value of the test_string
+  # a full block + first byte of last run with these parameters that crashed
+  '05a9cde44ef238a4c9e4d028201739914b'.decode('hex')
+  )
 print '\x1b[32;1m[*]\x1b[0m         iv:  %s' % new_iv.encode('hex')
 print '\x1b[32;1m[*]\x1b[0m ciphertext:  %s' % new_ciphertext.encode('hex')
 
